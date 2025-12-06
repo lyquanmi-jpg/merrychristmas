@@ -131,14 +131,14 @@
             border-radius: 12px;
             border: 2px solid rgba(255,255,255,0.3);
             box-shadow: 0 4px 15px rgba(0,0,0,0.6);
-            transform: scaleX(-1); /* 镜像翻转 */
+            /* transform 由 JavaScript 根据摄像头类型动态设置 */
             z-index: 90;
             object-fit: cover;
             transition: opacity 0.5s ease, transform 0.3s;
             background: #000;
         }
         #input_video.hidden-cam {
-            opacity: 0; pointer-events: none; transform: scaleX(-1) scale(0.8);
+            opacity: 0; pointer-events: none; transform: scale(0.8);
         }
         
         @media (max-width: 768px) {
@@ -202,7 +202,7 @@
         <div class="control-group">
             <label>摄像头控制</label>
             <button id="btn-toggle-cam" class="btn" style="background:rgba(255,255,255,0.15)">📹 显示/隐藏 摄像头</button>
-            <button id="btn-switch-camera" class="btn" style="background:rgba(100,150,255,0.2); margin-top:8px;">📷 切换到后置</button>
+            <button id="btn-switch-camera" class="btn" style="background:rgba(100,150,255,0.2); margin-top:8px;">📷 切换到前置</button>
         </div>
 
         <div class="control-group">
@@ -302,7 +302,7 @@
         let audioCtx, analyser, dataArray, audioEl;
         let cameraUtils = null; // 摄像头工具实例
         let handsInstance = null; // 手势识别实例
-        let currentFacingMode = 'user'; // 当前摄像头类型：'user' 前置，'environment' 后置
+        let currentFacingMode = 'environment'; // 当前摄像头类型：'user' 前置，'environment' 后置（默认后置）
         
         document.getElementById('btn-start').addEventListener('click', async () => {
             const screen = document.getElementById('start-screen');
@@ -516,7 +516,7 @@
             renderer.render(scene, camera);
         }
 
-        function startHandTracking(facingMode = 'user') {
+        function startHandTracking(facingMode = 'environment') {
             const video = document.getElementById('input_video');
             
             // 如果已有摄像头实例，先停止
