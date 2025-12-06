@@ -200,8 +200,9 @@
 
         <!-- 摄像头开关 -->
         <div class="control-group">
-            <label>辅助显示</label>
+            <label>摄像头控制</label>
             <button id="btn-toggle-cam" class="btn" style="background:rgba(255,255,255,0.15)">📹 显示/隐藏 摄像头</button>
+            <button id="btn-switch-camera" class="btn" style="background:rgba(100,150,255,0.2); margin-top:8px;">📷 切换到后置</button>
         </div>
 
         <div class="control-group">
@@ -299,6 +300,9 @@
         let particleSystem, treeGroup, starMesh;
         let photoMeshes = [], loadedImages = [];
         let audioCtx, analyser, dataArray, audioEl;
+        let cameraUtils = null; // 摄像头工具实例
+        let handsInstance = null; // 手势识别实例
+        let currentFacingMode = 'user'; // 当前摄像头类型：'user' 前置，'environment' 后置
         
         document.getElementById('btn-start').addEventListener('click', async () => {
             const screen = document.getElementById('start-screen');
@@ -512,72 +516,109 @@
             renderer.render(scene, camera);
         }
 
-        function startHandTracking() {
+        function startHandTracking(facingMode = 'user') {
             const video = document.getElementById('input_video');
-            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
             
-            hands.onResults(results => {
-                const status = document.getElementById('status-bar');
-                let statusText = "";
-                let leftFound = false;
+            // 如果已有摄像头实例，先停止
+            if (cameraUtils) {
+                try {
+                    cameraUtils.stop();
+                } catch (e) {
+                    console.log('停止旧摄像头:', e);
+                }
+            }
+            
+            // 创建或重用手势识别实例
+            if (!handsInstance) {
+                handsInstance = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+                handsInstance.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+                
+                handsInstance.onResults(results => {
+                    const status = document.getElementById('status-bar');
+                    let statusText = "";
+                    let leftFound = false;
 
-                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                    for (let i = 0; i < results.multiHandedness.length; i++) {
-                        const label = results.multiHandedness[i].label; // "Left" or "Right"
-                        const lm = results.multiHandLandmarks[i];
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        for (let i = 0; i < results.multiHandedness.length; i++) {
+                            const label = results.multiHandedness[i].label; // "Left" or "Right"
+                            const lm = results.multiHandLandmarks[i];
 
-                        if (label === 'Left') {
-                            leftFound = true;
-                            const d = Math.hypot(lm[4].x - lm[20].x, lm[4].y - lm[20].y);
-                            state.targetExplosion = Math.min(Math.max((d - 0.15) * 4, 0), 1);
-                            statusText += `🖐️ 左手: ${state.targetExplosion > 0.5 ? "爆炸" : "还原"}  `;
-                        }
+                            if (label === 'Left') {
+                                leftFound = true;
+                                const d = Math.hypot(lm[4].x - lm[20].x, lm[4].y - lm[20].y);
+                                state.targetExplosion = Math.min(Math.max((d - 0.15) * 4, 0), 1);
+                                statusText += `🖐️ 左手: ${state.targetExplosion > 0.5 ? "爆炸" : "还原"}  `;
+                            }
 
-                        if (label === 'Right') {
-                            const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-                            if (pinchDist < 0.05) {
-                                if (!state.photoActive) { showRandomPhoto(); state.photoActive = true; }
-                                statusText += `| 👌 右手: 捏合提取 `;
-                            } else if (pinchDist > 0.08) {
-                                if (state.photoActive) { document.getElementById('photo-modal').classList.remove('active'); state.photoActive = false; }
-                                statusText += `| ✋ 右手: 松开 `;
-                            } else {
-                                statusText += `| ✋ 右手: 就绪 `;
+                            if (label === 'Right') {
+                                const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+                                if (pinchDist < 0.05) {
+                                    if (!state.photoActive) { showRandomPhoto(); state.photoActive = true; }
+                                    statusText += `| 👌 右手: 捏合提取 `;
+                                } else if (pinchDist > 0.08) {
+                                    if (state.photoActive) { document.getElementById('photo-modal').classList.remove('active'); state.photoActive = false; }
+                                    statusText += `| ✋ 右手: 松开 `;
+                                } else {
+                                    statusText += `| ✋ 右手: 就绪 `;
+                                }
                             }
                         }
+                    } else {
+                        statusText = "👀 等待双手...";
                     }
-                } else {
-                    statusText = "👀 等待双手...";
-                }
 
-                if (!leftFound) state.targetExplosion = 0;
-                status.innerText = statusText;
-            });
+                    if (!leftFound) state.targetExplosion = 0;
+                    status.innerText = statusText;
+                });
+            }
 
             // 移动端优化：使用更合适的摄像头分辨率
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             const videoWidth = isMobile ? 640 : 1280;
             const videoHeight = isMobile ? 480 : 720;
             
-            const cameraUtils = new Camera(video, { 
+            // 更新当前摄像头类型
+            currentFacingMode = facingMode;
+            
+            // 根据摄像头类型决定是否镜像翻转
+            if (facingMode === 'user') {
+                video.style.transform = 'scaleX(-1)'; // 前置摄像头镜像
+            } else {
+                video.style.transform = 'scaleX(1)'; // 后置摄像头不镜像
+            }
+            
+            cameraUtils = new Camera(video, { 
                 onFrame: async () => { 
-                    await hands.send({image: video}); 
+                    await handsInstance.send({image: video}); 
                 }, 
                 width: videoWidth, 
                 height: videoHeight,
-                facingMode: 'user' // 前置摄像头
+                facingMode: facingMode
             });
             
             cameraUtils.start().catch(err => {
                 console.error('摄像头启动失败:', err);
                 const status = document.getElementById('status-bar');
-                status.innerText = '❌ 摄像头权限被拒绝，请允许访问摄像头';
+                status.innerText = `❌ 摄像头启动失败: ${err.message || '未知错误'}`;
                 // 显示提示
                 setTimeout(() => {
-                    alert('请允许浏览器访问摄像头权限，以便使用手势控制功能。\n\n在浏览器设置中允许摄像头权限后刷新页面。');
+                    alert(`摄像头启动失败，请检查权限设置。\n\n错误信息: ${err.message || '未知错误'}`);
                 }, 1000);
             });
+        }
+        
+        // 切换摄像头函数
+        function switchCamera() {
+            const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            const status = document.getElementById('status-bar');
+            status.innerText = `🔄 正在切换到${newFacingMode === 'user' ? '前置' : '后置'}摄像头...`;
+            
+            // 重新启动摄像头
+            startHandTracking(newFacingMode);
+            
+            // 更新按钮文本
+            const btn = document.getElementById('btn-switch-camera');
+            btn.innerText = newFacingMode === 'user' ? '📷 切换到后置' : '📷 切换到前置';
         }
 
         function showRandomPhoto() {
@@ -624,6 +665,11 @@
             // 摄像头开关逻辑
             document.getElementById('btn-toggle-cam').addEventListener('click', () => {
                 document.getElementById('input_video').classList.toggle('hidden-cam');
+            });
+            
+            // 摄像头切换逻辑
+            document.getElementById('btn-switch-camera').addEventListener('click', () => {
+                switchCamera();
             });
 
             document.getElementById('bg-select').addEventListener('change', (e) => document.body.className = 'bg-'+e.target.value);
