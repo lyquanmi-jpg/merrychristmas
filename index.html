@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Merry Christmas - Camera & Star Fix</title>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; transition: background 1s ease; }
+        
+        /* 背景样式 */
+        body.bg-black { background: #000; }
+        body.bg-deep { background: radial-gradient(circle at center, #1a1a2e 0%, #000000 100%); }
+        body.bg-warm { background: radial-gradient(circle at center, #2e1a1a 0%, #0f0505 100%); }
+        body.bg-aurora { background: radial-gradient(circle at top, #0f2027 0%, #203a43 50%, #2c5364 100%); }
+
+        /* 标题 */
+        #main-title {
+            position: absolute; top: 10px; left: 0; width: 100%;
+            text-align: center; font-family: 'Great Vibes', cursive;
+            font-size: clamp(2rem, 8vw, 5rem); z-index: 50; pointer-events: none; opacity: 0; transition: opacity 2s;
+            background: linear-gradient(to bottom, #ffd700, #ffec8b);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent; color: transparent;
+            text-shadow: 0 0 20px rgba(255,215,0,0.3);
+        }
+
+        /* 启动页 */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 200; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #fff;
+        }
+        #btn-start {
+            padding: 18px 60px; font-size: clamp(18px, 5vw, 24px); background: linear-gradient(90deg, #ffd700, #ffaa00);
+            border: none; border-radius: 30px; color: #000; font-weight: bold; cursor: pointer;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.3); margin-top: 30px; transition: transform 0.2s;
+            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+            min-height: 48px; /* 移动端最小触摸区域 */
+        }
+        #btn-start:hover, #btn-start:active { transform: scale(1.05); }
+
+        /* 照片弹窗 */
+        #photo-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
+            max-width: min(90vw, 500px); max-height: min(80vh, 600px); 
+            background: #fff; padding: 15px 15px 50px 15px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8); z-index: 150;
+            opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border-radius: 8px;
+            touch-action: manipulation;
+        }
+        #photo-modal.active { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-3deg); pointer-events: auto; }
+        #photo-modal img { max-width: 100%; max-height: min(60vh, 500px); display: block; border-radius: 4px; }
+        #photo-caption { 
+            text-align: center; color: #333; font-family: 'Great Vibes', cursive; 
+            font-size: clamp(1.5rem, 5vw, 2rem); margin-top: 10px; 
+        }
+        
+        @media (max-width: 768px) {
+            #photo-modal {
+                max-width: 85vw;
+                padding: 12px 12px 40px 12px;
+            }
+        }
+
+        /* 状态栏 */
+        #status-bar {
+            position: absolute; bottom: 10px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.7); font-size: clamp(12px, 3vw, 14px); text-shadow: 0 2px 4px #000; pointer-events: none;
+            background: rgba(0,0,0,0.3); padding: 8px 10px; z-index: 95;
+            box-sizing: border-box;
+        }
+
+        /* UI 面板 */
+        #ui-panel {
+            position: fixed; top: 60px; right: 10px; 
+            width: min(280px, 85vw); max-width: 320px;
+            max-height: calc(100vh - 120px); overflow-y: auto;
+            background: rgba(15, 15, 20, 0.92); backdrop-filter: blur(15px);
+            padding: 15px; border-radius: 12px; color: #fff;
+            border: 1px solid rgba(255,255,255,0.15); z-index: 100;
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            -webkit-overflow-scrolling: touch;
+        }
+        #ui-panel.hidden { transform: translateX(calc(100% + 20px)); }
+        
+        @media (max-width: 768px) {
+            #ui-panel {
+                width: min(260px, 80vw);
+                top: 50px;
+                right: 5px;
+                padding: 12px;
+                font-size: 14px;
+            }
+        }
+        
+        .control-group { margin-bottom: 12px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: clamp(11px, 2.5vw, 13px); color: #ccc; margin-bottom: 6px; }
+        input[type=range] { width: 100%; accent-color: #ffd700; cursor: pointer; height: 8px; touch-action: manipulation; }
+        .btn { 
+            width: 100%; padding: 12px 8px; background: rgba(255,255,255,0.1); 
+            border: 1px solid rgba(255,255,255,0.2); color: white; cursor: pointer; 
+            border-radius: 8px; font-size: clamp(12px, 3vw, 14px); margin-bottom: 8px; 
+            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+            min-height: 44px; /* 移动端最小触摸区域 */
+            transition: background 0.2s;
+        }
+        .btn:hover, .btn:active { background: rgba(255,255,255,0.2); }
+        select { 
+            width: 100%; padding: 10px; background: #222; border: 1px solid #444; 
+            color: #fff; border-radius: 6px; font-size: clamp(12px, 3vw, 14px);
+            touch-action: manipulation; min-height: 44px;
+        }
+
+        #toggle-btn {
+            position: fixed; top: 10px; right: 10px; width: 48px; height: 48px;
+            background: rgba(255,255,255,0.15); border-radius: 50%; color: #fff;
+            border: 1px solid rgba(255,255,255,0.3); cursor: pointer; z-index: 101;
+            display: flex; justify-content: center; align-items: center; font-size: 20px;
+            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: transform 0.2s, background 0.2s;
+        }
+        #toggle-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.25); }
+
+        /* === 摄像头样式优化 === */
+        #input_video {
+            position: fixed; bottom: 60px; left: 10px;
+            width: min(160px, 25vw); height: min(120px, 19vw);
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            transform: scaleX(-1); /* 镜像翻转 */
+            z-index: 90;
+            object-fit: cover;
+            transition: opacity 0.5s ease, transform 0.3s;
+            background: #000;
+        }
+        #input_video.hidden-cam {
+            opacity: 0; pointer-events: none; transform: scaleX(-1) scale(0.8);
+        }
+        
+        @media (max-width: 768px) {
+            #input_video {
+                bottom: 50px;
+                left: 8px;
+                width: min(140px, 22vw);
+                height: min(105px, 16.5vw);
+            }
+        }
+        
+        @media (orientation: landscape) and (max-height: 500px) {
+            #input_video {
+                width: 120px;
+                height: 90px;
+                bottom: 10px;
+            }
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-black">
+
+    <div id="main-title">Merry Christmas</div>
+    <div id="status-bar">系统初始化中...</div>
+
+    <!-- 启动页 -->
+    <div id="start-screen">
+        <h1 style="font-family: 'Great Vibes'; font-size: 4rem; color: #ffd700; margin: 0;">Winter Magic</h1>
+        <div style="margin-top:20px; text-align:center; color:#aaa; font-size:clamp(14px, 4vw, 18px); line-height:1.8; padding: 0 20px;">
+            ⬅️ <strong>左手</strong>：张开手掌控制爆炸<br>
+            ➡️ <strong>右手</strong>：双指捏合提取照片<br>
+            <span style="font-size:0.9em; color:#888;">请允许访问摄像头权限</span>
+        </div>
+        <button id="btn-start">开启魔法 ✨</button>
+    </div>
+
+    <!-- 照片展示 -->
+    <div id="photo-modal">
+        <img id="modal-img" src="" alt="Memory">
+        <div id="photo-caption">Sweet Memory</div>
+    </div>
+
+    <button id="toggle-btn">⚙️</button>
+    
+    <!-- 摄像头画面 (默认带 class，初始化后移除 hidden) -->
+    <video id="input_video" class="hidden-cam"></video>
+
+    <!-- 控制面板 -->
+    <div id="ui-panel">
+        <h3 style="margin:0 0 15px 0; color:#ffd700; border-bottom:1px solid #444; padding-bottom:10px;">🎄 控制面板</h3>
+        
+        <div class="control-group">
+            <button id="btn-fullscreen" class="btn">⛶ 进入全屏模式</button>
+        </div>
+
+        <!-- 摄像头开关 -->
+        <div class="control-group">
+            <label>辅助显示</label>
+            <button id="btn-toggle-cam" class="btn" style="background:rgba(255,255,255,0.15)">📹 显示/隐藏 摄像头</button>
+        </div>
+
+        <div class="control-group">
+            <label>场景风格</label>
+            <select id="bg-select">
+                <option value="black">🌌 纯黑 (Black)</option>
+                <option value="deep">🌃 深邃 (Deep Blue)</option>
+                <option value="warm">🔥 暖冬 (Warm)</option>
+                <option value="aurora">❄️ 极光 (Aurora)</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>背景音乐</label>
+            <button class="btn" onclick="document.getElementById('music-input').click()">📁 换音乐 (MP3)</button>
+            <input type="file" id="music-input" accept="audio/*" style="display:none;">
+            <div style="display:flex; gap:10px; margin-top:5px;">
+                <button id="btn-play-pause" class="btn" style="width:40px;">⏸</button>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.6">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>照片管理</label>
+            <button class="btn" style="background:linear-gradient(90deg, #00b894, #00cec9); color:black; font-weight:bold;" onclick="document.getElementById('folder-input').click()">📷 导入照片 (多选)</button>
+            <input type="file" id="folder-input" multiple accept="image/*" style="display:none;">
+        </div>
+
+        <div class="control-group">
+            <label>旋转速度 <span id="val-rot">0.002</span></label>
+            <input type="range" id="rot-speed" min="0" max="0.02" step="0.001" value="0.002">
+        </div>
+        <div class="control-group">
+            <label>树的高度</label>
+            <input type="range" id="tree-height" min="40" max="100" step="5" value="70">
+        </div>
+        <div class="control-group">
+            <label>音乐律动</label>
+            <input type="range" id="beat-sense" min="0.1" max="3.0" step="0.1" value="1.0">
+        </div>
+        
+        <div style="font-size:10px; color:#666; text-align:center; margin-top:15px;">
+            自动识别：左手控树 / 右手控图
+        </div>
+    </div>
+
+    <!-- Shader -->
+    <script type="x-shader/x-vertex" id="vertexshader">
+        attribute float size;
+        attribute vec3 customColor;
+        attribute vec3 spherePos; 
+        attribute float type;     
+        varying vec3 vColor; varying float vType;
+        uniform float uTime; uniform float uExplosion; uniform float uBeat;      
+        void main() {
+            vColor = customColor; vType = type;
+            float t = uExplosion;
+            float ease = 1.0 - pow(1.0 - t, 3.0);
+            vec3 finalPos = mix(position, spherePos, ease);
+            float beatScale = 1.0;
+            if (t < 0.2) beatScale += uBeat * 0.15 * (1.0 - t*3.0); 
+            if (type > 0.5) beatScale += uBeat * 0.2; 
+            vec4 mvPosition = modelViewMatrix * vec4(finalPos * beatScale, 1.0);
+            float s = size;
+            if(type > 0.5) s *= (1.0 + uBeat * 0.5);
+            gl_PointSize = s * (300.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="fragmentshader">
+        uniform float uTime; uniform float uBeat;
+        varying vec3 vColor; varying float vType;
+        void main() {
+            vec2 coord = gl_PointCoord - vec2(0.5);
+            if(length(coord) > 0.5) discard;
+            vec3 color = vColor; float alpha = 1.0;
+            if(vType > 0.5) {
+                float flash = 0.5 + 0.5 * sin(uTime * 5.0 + vType * 10.0);
+                color += vec3(0.5) * flash * uBeat * 2.0;
+            } else { alpha = 0.8; }
+            gl_FragColor = vec4(color, alpha);
+        }
+    </script>
+
+    <script>
+        const state = { 
+            explosion: 0.0, 
+            targetExplosion: 0.0, 
+            photoActive: false, 
+            treeHeight: 70,
+            rotationSpeed: 0.002
+        };
+
+        let scene, camera, renderer, clock;
+        let particleSystem, treeGroup, starMesh;
+        let photoMeshes = [], loadedImages = [];
+        let audioCtx, analyser, dataArray, audioEl;
+        
+        document.getElementById('btn-start').addEventListener('click', async () => {
+            const screen = document.getElementById('start-screen');
+            screen.style.opacity = 0;
+            setTimeout(() => screen.remove(), 1000);
+            document.getElementById('main-title').style.opacity = 1;
+            
+            // 启动时显示摄像头
+            document.getElementById('input_video').classList.remove('hidden-cam');
+            
+            // 移动端：确保音频上下文已激活
+            if (audioCtx && audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            
+            initAudio();
+            initThree();
+            setupUI();
+            
+            // 延迟启动手势识别，确保摄像头已准备好
+            setTimeout(() => {
+                startHandTracking();
+            }, 500);
+            
+            // 尝试播放音频（移动端需要用户交互）
+            if (audioEl) {
+                audioEl.play().catch(e => console.log("音频播放需要用户交互", e));
+            }
+        });
+
+        function initAudio() {
+            audioEl = new Audio();
+            audioEl.crossOrigin = "anonymous";
+            audioEl.src = "https://thirdparty.gtimg.com/C1000007bNrR1HXkjD.m4a?fromtag=38";
+            audioEl.loop = true;
+            audioEl.preload = "auto";
+            
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            
+            // 移动端音频上下文可能需要用户交互后恢复
+            if (audioCtx.state === 'suspended') {
+                const resumeAudio = () => {
+                    audioCtx.resume().then(() => {
+                        document.removeEventListener('touchstart', resumeAudio);
+                        document.removeEventListener('click', resumeAudio);
+                    });
+                };
+                document.addEventListener('touchstart', resumeAudio, { once: true });
+                document.addEventListener('click', resumeAudio, { once: true });
+            }
+            
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            
+            const source = audioCtx.createMediaElementSource(audioEl);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            // 移动端：延迟播放，等待用户交互
+            audioEl.play().catch(e => {
+                console.log("音频播放失败，等待用户交互", e);
+                // 在用户点击开始按钮后自动播放
+            });
+        }
+
+        function initThree() {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.004);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 30, 90);
+            camera.lookAt(0, 30, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // 移动端性能优化：限制像素比
+            const pixelRatio = Math.min(window.devicePixelRatio, isMobile ? 2 : 3);
+            renderer.setPixelRatio(pixelRatio);
+            document.body.appendChild(renderer.domElement);
+            
+            // 响应式处理
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            treeGroup = new THREE.Group();
+            scene.add(treeGroup);
+
+            createParticles();
+            createStar();
+            createSnow();
+            animate();
+        }
+
+        function createParticles() {
+            if(particleSystem) { treeGroup.remove(particleSystem); particleSystem.geometry.dispose(); }
+            const count = 18000;
+            const geo = new THREE.BufferGeometry();
+            const positions = [], spherePos = [], colors = [], sizes = [], types = [];
+            const h = state.treeHeight;
+            const colorHelper = new THREE.Color();
+
+            for(let i=0; i<count; i++) {
+                const y = (i/count) * h;
+                const rBase = (1 - y/h) * (h*0.4);
+                const angle = i * 0.2;
+                const r = rBase * Math.sqrt(Math.random());
+                positions.push(Math.cos(angle)*r, y - 10, Math.sin(angle)*r);
+
+                const v = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+                v.multiplyScalar(40 + Math.random()*50);
+                spherePos.push(v.x, v.y + 20, v.z);
+
+                const rnd = Math.random();
+                if(rnd > 0.96) { types.push(2); sizes.push(4); colorHelper.setHex(0xffaa00); }
+                else if(rnd > 0.92) { types.push(1); sizes.push(3); colorHelper.setHex(Math.random()>0.5?0xff0000:0x00aaff); }
+                else { types.push(0); sizes.push(1.5); colorHelper.setHex(0x228b22); }
+                
+                colors.push(colorHelper.r, colorHelper.g, colorHelper.b);
+            }
+
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geo.setAttribute('spherePos', new THREE.Float32BufferAttribute(spherePos, 3));
+            geo.setAttribute('customColor', new THREE.Float32BufferAttribute(colors, 3));
+            geo.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+            geo.setAttribute('type', new THREE.Float32BufferAttribute(types, 1));
+
+            state.uniforms = { uTime: { value: 0 }, uExplosion: { value: 0 }, uBeat: { value: 0 } };
+            const mat = new THREE.ShaderMaterial({
+                uniforms: state.uniforms, vertexShader: document.getElementById('vertexshader').textContent,
+                fragmentShader: document.getElementById('fragmentshader').textContent,
+                blending: THREE.AdditiveBlending, depthTest: false, transparent: true
+            });
+
+            particleSystem = new THREE.Points(geo, mat);
+            treeGroup.add(particleSystem);
+        }
+
+        function updatePhotos() {
+            photoMeshes.forEach(m => treeGroup.remove(m));
+            photoMeshes = [];
+            if(loadedImages.length === 0) return;
+
+            loadedImages.forEach(img => {
+                const cvs = document.createElement('canvas'); cvs.width=256; cvs.height=256;
+                const ctx = cvs.getContext('2d');
+                ctx.beginPath(); ctx.arc(128,128,120,0,Math.PI*2); ctx.clip();
+                const asp = img.width/img.height;
+                if(asp>1) ctx.drawImage(img, (img.width-img.height)/2, 0, img.height, img.height, 0,0,256,256);
+                else ctx.drawImage(img, 0, (img.height-img.width)/2, img.width, img.width, 0,0,256,256);
+                ctx.lineWidth=10; ctx.strokeStyle='#fff'; ctx.stroke();
+                
+                const tex = new THREE.CanvasTexture(cvs);
+                const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent:true });
+                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6,6), mat);
+
+                const y = Math.random() * (state.treeHeight * 0.8);
+                const r = (1 - y/state.treeHeight) * (state.treeHeight*0.4) + 2; 
+                const a = Math.random() * Math.PI * 2;
+                const origin = new THREE.Vector3(Math.cos(a)*r, y-10, Math.sin(a)*r);
+                const explodeDir = origin.clone().normalize().multiplyScalar(40 + Math.random()*30);
+                explodeDir.y += 20;
+
+                mesh.position.copy(origin);
+                mesh.userData = { origin: origin, explodePos: explodeDir, imgSrc: img.src };
+                treeGroup.add(mesh);
+                photoMeshes.push(mesh);
+            });
+            alert(`已挂载 ${loadedImages.length} 张照片`);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+            let beat = 0;
+            if(analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0; for(let i=0; i<15; i++) sum+=dataArray[i];
+                beat = (sum/15/255) * parseFloat(document.getElementById('beat-sense').value);
+            }
+
+            if(state.uniforms) {
+                state.uniforms.uTime.value = t;
+                state.uniforms.uBeat.value = beat;
+                state.explosion += (state.targetExplosion - state.explosion) * 0.05;
+                state.uniforms.uExplosion.value = state.explosion;
+            }
+
+            const ease = 1.0 - Math.pow(1.0 - state.explosion, 3.0);
+            photoMeshes.forEach(p => {
+                p.position.lerpVectors(p.userData.origin, p.userData.explodePos, ease);
+                p.lookAt(camera.position);
+                p.rotation.z += 0.005 * (1 + state.explosion * 5);
+            });
+
+            treeGroup.rotation.y += state.rotationSpeed + state.explosion * 0.01;
+
+            if(starMesh) { starMesh.rotation.y -= 0.02; const s = 1 + beat * 0.3; starMesh.scale.set(s,s,s); }
+            if(window.snowSystem) {
+                const pos = window.snowSystem.geometry.attributes.position.array;
+                for(let i=1; i<pos.length; i+=3) { pos[i] -= 0.3; if(pos[i]<-20) pos[i]=100; }
+                window.snowSystem.geometry.attributes.position.needsUpdate = true;
+            }
+            renderer.render(scene, camera);
+        }
+
+        function startHandTracking() {
+            const video = document.getElementById('input_video');
+            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            
+            hands.onResults(results => {
+                const status = document.getElementById('status-bar');
+                let statusText = "";
+                let leftFound = false;
+
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    for (let i = 0; i < results.multiHandedness.length; i++) {
+                        const label = results.multiHandedness[i].label; // "Left" or "Right"
+                        const lm = results.multiHandLandmarks[i];
+
+                        if (label === 'Left') {
+                            leftFound = true;
+                            const d = Math.hypot(lm[4].x - lm[20].x, lm[4].y - lm[20].y);
+                            state.targetExplosion = Math.min(Math.max((d - 0.15) * 4, 0), 1);
+                            statusText += `🖐️ 左手: ${state.targetExplosion > 0.5 ? "爆炸" : "还原"}  `;
+                        }
+
+                        if (label === 'Right') {
+                            const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+                            if (pinchDist < 0.05) {
+                                if (!state.photoActive) { showRandomPhoto(); state.photoActive = true; }
+                                statusText += `| 👌 右手: 捏合提取 `;
+                            } else if (pinchDist > 0.08) {
+                                if (state.photoActive) { document.getElementById('photo-modal').classList.remove('active'); state.photoActive = false; }
+                                statusText += `| ✋ 右手: 松开 `;
+                            } else {
+                                statusText += `| ✋ 右手: 就绪 `;
+                            }
+                        }
+                    }
+                } else {
+                    statusText = "👀 等待双手...";
+                }
+
+                if (!leftFound) state.targetExplosion = 0;
+                status.innerText = statusText;
+            });
+
+            // 移动端优化：使用更合适的摄像头分辨率
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const videoWidth = isMobile ? 640 : 1280;
+            const videoHeight = isMobile ? 480 : 720;
+            
+            const cameraUtils = new Camera(video, { 
+                onFrame: async () => { 
+                    await hands.send({image: video}); 
+                }, 
+                width: videoWidth, 
+                height: videoHeight,
+                facingMode: 'user' // 前置摄像头
+            });
+            
+            cameraUtils.start().catch(err => {
+                console.error('摄像头启动失败:', err);
+                const status = document.getElementById('status-bar');
+                status.innerText = '❌ 摄像头权限被拒绝，请允许访问摄像头';
+                // 显示提示
+                setTimeout(() => {
+                    alert('请允许浏览器访问摄像头权限，以便使用手势控制功能。\n\n在浏览器设置中允许摄像头权限后刷新页面。');
+                }, 1000);
+            });
+        }
+
+        function showRandomPhoto() {
+            if(loadedImages.length === 0) return;
+            const img = loadedImages[Math.floor(Math.random() * loadedImages.length)];
+            const modal = document.getElementById('photo-modal');
+            document.getElementById('modal-img').src = img.src;
+            modal.classList.add('active');
+        }
+
+        function setupUI() {
+            const fsBtn = document.getElementById('btn-fullscreen');
+            fsBtn.addEventListener('click', async () => {
+                try {
+                    if(!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {
+                        // 尝试多种全屏API以兼容不同浏览器
+                        if (document.documentElement.requestFullscreen) {
+                            await document.documentElement.requestFullscreen();
+                        } else if (document.documentElement.webkitRequestFullscreen) {
+                            await document.documentElement.webkitRequestFullscreen();
+                        } else if (document.documentElement.mozRequestFullScreen) {
+                            await document.documentElement.mozRequestFullScreen();
+                        } else if (document.documentElement.msRequestFullscreen) {
+                            await document.documentElement.msRequestFullscreen();
+                        }
+                        fsBtn.innerText="❌ 退出全屏";
+                    } else {
+                        if (document.exitFullscreen) {
+                            await document.exitFullscreen();
+                        } else if (document.webkitExitFullscreen) {
+                            await document.webkitExitFullscreen();
+                        } else if (document.mozCancelFullScreen) {
+                            await document.mozCancelFullScreen();
+                        } else if (document.msExitFullscreen) {
+                            await document.msExitFullscreen();
+                        }
+                        fsBtn.innerText="⛶ 进入全屏";
+                    }
+                } catch (err) {
+                    console.log('全屏操作失败:', err);
+                }
+            });
+
+            // 摄像头开关逻辑
+            document.getElementById('btn-toggle-cam').addEventListener('click', () => {
+                document.getElementById('input_video').classList.toggle('hidden-cam');
+            });
+
+            document.getElementById('bg-select').addEventListener('change', (e) => document.body.className = 'bg-'+e.target.value);
+            document.getElementById('toggle-btn').addEventListener('click', () => document.getElementById('ui-panel').classList.toggle('hidden'));
+            
+            document.getElementById('rot-speed').addEventListener('input', (e) => {
+                state.rotationSpeed = parseFloat(e.target.value);
+                document.getElementById('val-rot').innerText = state.rotationSpeed.toFixed(3);
+            });
+
+            document.getElementById('music-input').addEventListener('change', (e) => {
+                if(e.target.files[0]) { audioEl.src = URL.createObjectURL(e.target.files[0]); audioEl.play(); }
+            });
+            document.getElementById('btn-play-pause').addEventListener('click', () => {
+                if(audioEl.paused) { audioEl.play(); document.getElementById('btn-play-pause').innerText="⏸"; }
+                else { audioEl.pause(); document.getElementById('btn-play-pause').innerText="▶"; }
+            });
+            document.getElementById('volume-slider').addEventListener('input', (e) => audioEl.volume = e.target.value);
+            document.getElementById('folder-input').addEventListener('change', (e) => {
+                const files = Array.from(e.target.files); loadedImages = [];
+                files.forEach(f => {
+                    const r = new FileReader(); r.onload=ev=>{ const i=new Image(); i.onload=()=>loadedImages.push(i)===Math.min(files.length,30)&&updatePhotos(); i.src=ev.target.result; }; r.readAsDataURL(f);
+                });
+            });
+            
+            document.getElementById('tree-height').addEventListener('input', (e) => {
+                state.treeHeight = parseInt(e.target.value);
+                createParticles();
+                // 修正：星星紧贴树顶，移除额外偏移
+                if(starMesh) starMesh.position.y = state.treeHeight;
+            });
+        }
+
+        function createStar() {
+            const s=new THREE.Shape(); const p=5; for(let i=0;i<p*2;i++){ const r=(i%2===0)?4:2; const a=i/p*Math.PI; s.lineTo(Math.cos(a)*r,Math.sin(a)*r); }
+            const g=new THREE.ExtrudeGeometry(s,{depth:1,bevelEnabled:true,bevelThickness:0.5,bevelSize:0.2});
+            starMesh=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xffdd00}));
+            // 修正：初始创建时也紧贴树顶
+            starMesh.position.y=state.treeHeight; 
+            treeGroup.add(starMesh);
+        }
+        function createSnow() {
+            const g=new THREE.BufferGeometry(); const pos=[]; for(let i=0;i<1000;i++) pos.push((Math.random()-0.5)*200,Math.random()*150,(Math.random()-0.5)*200);
+            g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+            window.snowSystem=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.6,transparent:true,opacity:0.6}));
+            scene.add(window.snowSystem);
+        }
+    </script>
+</body>
+</html>
